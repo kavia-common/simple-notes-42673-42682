@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { AbsoluteFill } from "remotion";
 import { Theme } from "./theme";
 import { Header } from "./components/Header";
@@ -21,47 +21,49 @@ export const NotesApp: React.FC = () => {
   const { filtered, notes, selected, setQuery, query, select, create, remove, patchSelected } = useNotes();
 
   // Keyboard shortcuts (guarding for non-browser environments)
-  useEffect(() => {
-    const handler = (e: any) => {
-      const isCmdPressed = isMac() ? !!e.metaKey : !!e.ctrlKey;
-      if (isCmdPressed && String(e.key || "").toLowerCase() === "n") {
-        e.preventDefault?.();
-        create();
-      }
-      if ((e.key === "Delete" || e.key === "Backspace") && selected) {
-        const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
-        const doc = g?.document;
-        const activeTag = doc?.activeElement?.tagName;
-        if (activeTag && ["INPUT", "TEXTAREA"].includes(String(activeTag).toUpperCase())) {
-          // If typing in a field, don't intercept delete
-          return;
-        }
-        e.preventDefault?.();
-        remove(selected.id);
-      }
-    };
-
-    const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
-    const w = g?.window ?? g;
-    if (w && w.addEventListener) {
-      w.addEventListener("keydown", handler);
-      return () => {
-        if (w && w.removeEventListener) {
-          w.removeEventListener("keydown", handler);
-        }
-      };
+  const keyHandlerRef = useRef<(e: any) => void>(() => {});
+  keyHandlerRef.current = (e: any) => {
+    const isCmdPressed = isMac() ? !!e.metaKey : !!e.ctrlKey;
+    if (isCmdPressed && String(e.key || "").toLowerCase() === "n") {
+      e.preventDefault?.();
+      create();
+      return;
     }
-    return () => undefined;
+    if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+      const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
+      const doc = g?.document;
+      const activeTag = doc?.activeElement?.tagName;
+      if (activeTag && ["INPUT", "TEXTAREA"].includes(String(activeTag).toUpperCase())) {
+        // If typing in a field, don't intercept delete
+        return;
+      }
+      e.preventDefault?.();
+      remove(selected.id);
+    }
+  };
+
+  useEffect(() => {
+    const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
+    const w = g?.window;
+    if (!w || !w.addEventListener) {
+      return;
+    }
+    const wrapped = (e: any) => keyHandlerRef.current?.(e);
+    w.addEventListener("keydown", wrapped);
+    return () => {
+      w.removeEventListener("keydown", wrapped);
+    };
   }, [create, remove, selected]);
 
   // Env-safe usage note: Respect known frontend env vars without requiring them
   // They could be used for future feature flags or logging, but are optional.
   // Prefer globalThis for safer access; may be undefined values which is fine.
   const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : {};
+  const procEnv = (g?.process && g?.process?.env) ? g.process.env : undefined;
   const _env = {
-    API_BASE: g?.import?.meta?.env?.REMOTION_API_BASE ?? g?.process?.env?.REMOTION_API_BASE,
-    FRONTEND_URL: g?.import?.meta?.env?.REMOTION_FRONTEND_URL ?? g?.process?.env?.REMOTION_FRONTEND_URL,
-    NODE_ENV: g?.import?.meta?.env?.REMOTION_NODE_ENV ?? g?.process?.env?.REMOTION_NODE_ENV,
+    API_BASE: procEnv?.REMOTION_API_BASE,
+    FRONTEND_URL: procEnv?.REMOTION_FRONTEND_URL,
+    NODE_ENV: procEnv?.REMOTION_NODE_ENV,
   };
   void _env; // avoid unused var lint
 

@@ -34,9 +34,25 @@ export const useNotes = (): UseNotesResult => {
   const [state, setState] = useState<NotesState>(() => bootstrapState());
   const [query, setQuery] = useState("");
 
-  // Persist
+  // Persist (debounced to avoid thrashing and Strict Mode double-effect)
   useEffect(() => {
-    saveState(state);
+    const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
+    const setT = g?.setTimeout;
+    const clearT = g?.clearTimeout;
+    let t: any = null;
+    if (setT) {
+      t = setT(() => {
+        saveState(state);
+      }, 100);
+    } else {
+      // Fallback: immediate save if timers are not available
+      saveState(state);
+    }
+    return () => {
+      if (t && clearT) {
+        clearT(t);
+      }
+    };
   }, [state]);
 
   const filtered = useMemo(() => filterNotes(state.notes, query), [state.notes, query]);

@@ -49,11 +49,17 @@ export const NotesApp: React.FC = () => {
       return;
     }
     const wrapped = (e: any) => keyHandlerRef.current?.(e);
-    w.addEventListener("keydown", wrapped);
+    w.addEventListener("keydown", wrapped, { passive: true } as any);
     return () => {
-      w.removeEventListener("keydown", wrapped);
+      try {
+        w.removeEventListener("keydown", wrapped as any);
+      } catch {
+        // ignore
+      }
     };
-  }, [create, remove, selected]);
+    // Empty deps so we add/remove exactly once on mount/unmount.
+    // We rely on ref to always have the latest handler.
+  }, []);
 
   // Env-safe usage note: Respect known frontend env vars without requiring them
   // They could be used for future feature flags or logging, but are optional.

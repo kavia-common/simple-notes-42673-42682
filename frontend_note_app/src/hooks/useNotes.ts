@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createEmptyNote, filterNotes, Note, NotesState, sortNotesByUpdated, updateNote } from "../utils/notes";
 import { loadState, saveState } from "../utils/storage";
+import { safeLog } from "../utils/logger";
 
 type UseNotesResult = {
   notes: Note[];
@@ -35,18 +36,31 @@ export const useNotes = (): UseNotesResult => {
   const [query, setQuery] = useState("");
 
   // Persist (debounced to avoid thrashing and Strict Mode double-effect)
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
-    const setT = g?.setTimeout;
-    const clearT = g?.clearTimeout;
+    const setT = g?.setTimeout?.bind(g);
+    const clearT = g?.clearTimeout?.bind(g);
     let t: any = null;
     if (setT) {
       t = setT(() => {
+        if (!mountedRef.current) return;
         saveState(state);
-      }, 100);
+      }, 120);
     } else {
       // Fallback: immediate save if timers are not available
-      saveState(state);
+      try {
+        if (mountedRef.current) saveState(state);
+      } catch (err) {
+        safeLog("warn", "Immediate save failed.", err);
+      }
     }
     return () => {
       if (t && clearT) {

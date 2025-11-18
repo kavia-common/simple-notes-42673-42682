@@ -21,25 +21,35 @@ export const NoteEditor: React.FC<Props> = ({ note, onChange }) => {
     setTagsInput((note?.tags ?? []).join(", "));
   }, [note?.id]);
 
+  const throttledChange150Ref = useRef<(p: Partial<Note>) => void>(() => {});
+  const throttledChange200Ref = useRef<(p: Partial<Note>) => void>(() => {});
+
+  // Initialize throttled functions once, keep latest onChange via ref wrapper
+  const onChangeRef = useRef(onChange);
   useEffect(() => {
-    // Throttle updates to avoid excessive renders
-    const push = throttle(onChange, 150);
-    push({ title });
-  }, [title, onChange]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
-    const push = throttle(onChange, 150);
-    push({ body });
-  }, [body, onChange]);
+    throttledChange150Ref.current = throttle((p: Partial<Note>) => onChangeRef.current(p), 150);
+    throttledChange200Ref.current = throttle((p: Partial<Note>) => onChangeRef.current(p), 200);
+  }, []);
 
   useEffect(() => {
-    const push = throttle(onChange, 200);
+    throttledChange150Ref.current?.({ title });
+  }, [title]);
+
+  useEffect(() => {
+    throttledChange150Ref.current?.({ body });
+  }, [body]);
+
+  useEffect(() => {
     const tags = tagsInput
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    push({ tags });
-  }, [tagsInput, onChange]);
+    throttledChange200Ref.current?.({ tags });
+  }, [tagsInput]);
 
   if (!note) {
     return (

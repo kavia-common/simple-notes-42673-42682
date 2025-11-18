@@ -1,0 +1,4 @@
+{
+    "command": "BROWSER=none npm run dev -- --port <port> --host <host>",
+    "working_directory": "/home/kavia/workspace/code-generation/simple-notes-42673-42682/frontend_note_app"
+}

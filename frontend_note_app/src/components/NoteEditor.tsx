@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Theme } from "../theme";
 import type { Note } from "../utils/notes";
 import { throttle } from "../utils/helpers";
+import { useStudioHeartbeatGuard, swallowSync } from "../utils/studio-guards";
 
 type Props = {
   note: Note | null;
@@ -12,6 +13,7 @@ export const NoteEditor: React.FC<Props> = ({ note, onChange }) => {
   const [title, setTitle] = useState(note?.title ?? "");
   const [body, setBody] = useState(note?.body ?? "");
   const [tagsInput, setTagsInput] = useState((note?.tags ?? []).join(", "));
+  const { unstable } = useStudioHeartbeatGuard();
 
   const titleRef = useRef<null | any>(null);
 
@@ -31,25 +33,34 @@ export const NoteEditor: React.FC<Props> = ({ note, onChange }) => {
   }, [onChange]);
 
   useEffect(() => {
-    throttledChange150Ref.current = throttle((p: Partial<Note>) => onChangeRef.current(p), 150);
-    throttledChange200Ref.current = throttle((p: Partial<Note>) => onChangeRef.current(p), 200);
+    throttledChange150Ref.current = throttle(
+      swallowSync((p: Partial<Note>) => onChangeRef.current(p), "note-update-150"),
+      150
+    );
+    throttledChange200Ref.current = throttle(
+      swallowSync((p: Partial<Note>) => onChangeRef.current(p), "note-update-200"),
+      200
+    );
   }, []);
 
   useEffect(() => {
+    if (unstable) return; // suspend during unstable preview
     throttledChange150Ref.current?.({ title });
-  }, [title]);
+  }, [title, unstable]);
 
   useEffect(() => {
+    if (unstable) return; // suspend during unstable preview
     throttledChange150Ref.current?.({ body });
-  }, [body]);
+  }, [body, unstable]);
 
   useEffect(() => {
+    if (unstable) return; // suspend during unstable preview
     const tags = tagsInput
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
     throttledChange200Ref.current?.({ tags });
-  }, [tagsInput]);
+  }, [tagsInput, unstable]);
 
   if (!note) {
     return (
@@ -77,19 +88,19 @@ export const NoteEditor: React.FC<Props> = ({ note, onChange }) => {
         }}
       >
         <input
-          ref={titleRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Note title"
-          style={{
-            width: "100%",
-            border: "none",
-            outline: "none",
-            fontSize: 20,
-            fontWeight: 700,
-            background: "transparent",
-            color: Theme.colors.text,
-          }}
+            ref={titleRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Note title"
+            style={{
+              width: "100%",
+              border: "none",
+              outline: "none",
+              fontSize: 20,
+              fontWeight: 700,
+              background: "transparent",
+              color: Theme.colors.text,
+            }}
         />
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, color: Theme.colors.textMuted }}>Tags:</span>

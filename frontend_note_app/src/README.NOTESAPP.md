@@ -19,3 +19,10 @@ The following environment variables are optionally read if present:
 - REMOTION_FRONTEND_URL
 - REMOTION_NODE_ENV
 They are not required for running the UI.
+
+Studio Stability:
+- Persistence is fully disabled in Studio to prevent preview loops.
+- No cross-tab storage listeners are registered.
+- Global listeners (like keydown) are attached once and suspended during unstable mount/unmount loops.
+- Composition width/height/fps/duration are constants to avoid runtime changes.
+- Critical initializations are wrapped in try/catch to avoid sync throws causing remounts.

@@ -6,19 +6,30 @@ const STORAGE_KEY = "ocean-notes-state-v1";
 // In-memory fallback store used when localStorage is unavailable or disabled (e.g., in Studio)
 let inMemoryState: NotesState | null = null;
 
+// Guard to ensure we only attach a single storage listener if we ever add one
+let storageListenerAttached = false;
+
 // PUBLIC_INTERFACE
 export const loadState = (): NotesState | null => {
   try {
     const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
 
-    // Disable persistence in Remotion Studio to prevent preview reload loops
+    // Completely disable persistence & cross-tab sync in Remotion Studio
     if (isRemotionStudio()) {
-      safeLog("info", "Persistence disabled in Remotion Studio; using in-memory state.");
+      safeLog("info", "Persistence disabled in Remotion Studio; using in-memory state only.");
       return inMemoryState;
     }
 
     const ls = g?.localStorage;
     if (!ls || !ls.getItem) return inMemoryState;
+
+    // Avoid subscribing to 'storage' events at all to prevent feedback loops
+    // and unexpected re-renders between tabs while testing.
+    if (!isRemotionStudio() && !storageListenerAttached) {
+      // Intentionally NOOP: we do not add any cross-tab listener by design
+      storageListenerAttached = true;
+    }
+
     const raw = ls.getItem(STORAGE_KEY);
     if (!raw) return inMemoryState;
     const parsed = JSON.parse(raw) as NotesState;
@@ -42,7 +53,7 @@ export const saveState = (state: NotesState) => {
     // Always keep the in-memory mirror updated
     inMemoryState = state;
 
-    // Short-circuit in Studio to completely avoid touching localStorage
+    // Short-circuit in Studio to completely avoid touching localStorage or firing events
     if (isRemotionStudio()) {
       return;
     }

@@ -8,6 +8,8 @@ import { NoteEditor } from "./components/NoteEditor";
 import { useNotes } from "./hooks/useNotes";
 import type { Note } from "./utils/notes";
 import { cmdKeyLabel, isMac } from "./utils/helpers";
+import { useStudioHeartbeatGuard, swallowSync } from "./utils/studio-guards";
+import { safeLog } from "./utils/logger";
 
 // PUBLIC_INTERFACE
 export const NotesApp: React.FC = () => {
@@ -16,13 +18,16 @@ export const NotesApp: React.FC = () => {
    * - Header with app title and Add Note button
    * - Left sidebar with search and notes list
    * - Right editor pane for the selected note
-   * Local state persists to localStorage.
+   * Local state persists to localStorage (disabled in Studio).
    */
+  // Heartbeat guard: if unstable, we will avoid heavy effects
+  const { unstable } = useStudioHeartbeatGuard();
+
   const { filtered, notes, selected, setQuery, query, select, create, remove, patchSelected } = useNotes();
 
   // Keyboard shortcuts (guarding for non-browser environments)
   const keyHandlerRef = useRef<(e: any) => void>(() => {});
-  keyHandlerRef.current = (e: any) => {
+  keyHandlerRef.current = swallowSync((e: any) => {
     const isCmdPressed = isMac() ? !!e.metaKey : !!e.ctrlKey;
     if (isCmdPressed && String(e.key || "").toLowerCase() === "n") {
       e.preventDefault?.();
@@ -40,9 +45,14 @@ export const NotesApp: React.FC = () => {
       e.preventDefault?.();
       remove(selected.id);
     }
-  };
+  }, "keydown");
 
   useEffect(() => {
+    // Avoid adding listeners during unstable heartbeat to reduce mount churn
+    if (unstable) {
+      safeLog("debug", "Skipping keydown listener due to unstable heartbeat.");
+      return;
+    }
     const g: any = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
     const w = g?.window;
     if (!w || !w.addEventListener) {
@@ -57,9 +67,8 @@ export const NotesApp: React.FC = () => {
         // ignore
       }
     };
-    // Empty deps so we add/remove exactly once on mount/unmount.
-    // We rely on ref to always have the latest handler.
-  }, []);
+    // Re-run if heartbeat stability changes to re-attach cleanly.
+  }, [unstable]);
 
   // Env-safe usage note: Respect known frontend env vars without requiring them
   // They could be used for future feature flags or logging, but are optional.
